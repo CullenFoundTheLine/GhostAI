@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ghost AI — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #e0e0e0; font-family: 'Courier New', monospace; padding: 20px; }
+    h1   { color: #00ff88; font-size: 1.4rem; letter-spacing: 2px; margin-bottom: 20px; }
+    h2   { color: #aaa; font-size: 0.9rem; letter-spacing: 1px; margin: 16px 0 8px; text-transform: uppercase; }
+    #sessions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .session-btn {
+      background: #1a1a1a; border: 1px solid #333; color: #00ff88;
+      padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.75rem;
+      border-radius: 3px;
+    }
+    .session-btn:hover, .session-btn.active { background: #00ff88; color: #000; }
+    table  { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    thead tr { background: #1a1a1a; color: #00ff88; }
+    th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #1e1e1e; }
+    th:first-child, td:first-child { text-align: left; }
+    tbody tr:nth-child(odd)  { background: #111; }
+    tbody tr:hover           { background: #1a2e1a; }
+    #status { color: #555; font-size: 0.75rem; margin-top: 12px; }
+    .hi  { color: #ff4444; }
+    .mid { color: #ffaa00; }
+    .lo  { color: #00ff88; }
+  </style>
+</head>
+<body>
+  <h1>⚡ GHOST AI — Session Dashboard</h1>
+
+  <h2>Sessions</h2>
+  <div id="sessions"><em style="color:#555">Loading...</em></div>
+
+  <h2>Telemetry</h2>
+  <div style="overflow-x:auto">
+    <table>
+      <thead id="thead"><tr><td>No data</td></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div id="status"></div>
+
+<script>
+const COLS = ['speed_kph','gear','throttle','brake','rpm','lap','pos_x','pos_y','pos_z',
+              'tire_fl','tire_fr','tire_rl','tire_rr'];
+
+async function loadSessions() {
+  const res = await fetch('/api/sessions');
+  const names = await res.json();
+  const el = document.getElementById('sessions');
+  el.innerHTML = '';
+  if (!names.length) { el.innerHTML = '<em style="color:#555">No sessions yet</em>'; return; }
+  names.forEach((name, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'session-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = name;
+    btn.onclick = () => {
+      document.querySelectorAll('.session-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadSession();
+    };
+    el.appendChild(btn);
+  });
+}
+
+async function loadSession() {
+  const res = await fetch('/api/session');
+  const rows = await res.json();
+  const thead = document.getElementById('thead');
+  const tbody = document.getElementById('tbody');
+  const status = document.getElementById('status');
+
+  if (!rows.length) { thead.innerHTML='<tr><td>Empty session</td></tr>'; tbody.innerHTML=''; return; }
+
+  const keys = Object.keys(rows[0]);
+  thead.innerHTML = '<tr>' + keys.map(k => `<th>${k}</th>`).join('') + '</tr>';
+  tbody.innerHTML = rows.map(row => {
+    return '<tr>' + keys.map(k => {
+      const v = parseFloat(row[k]);
+      let cls = '';
+      if (k === 'throttle') cls = v > 200 ? 'hi' : v > 100 ? 'mid' : 'lo';
+      if (k === 'brake')    cls = v > 100 ? 'hi' : v > 30  ? 'mid' : 'lo';
+      if (k === 'speed_kph') cls = v > 200 ? 'hi' : v > 100 ? 'mid' : 'lo';
+      return `<td class="${cls}">${row[k] || '-'}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  status.textContent = `${rows.length} samples loaded`;
+}
+
+loadSessions().then(loadSession);
+</script>
+</body>
+</html>

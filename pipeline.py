@@ -1,3 +1,4 @@
+# receive telemetry -> segment laps -> predict style -> generate feedback -> save session → display on website
 # pipeline.py
 # GhostPipeline — full pipeline from raw session CSVs to trained model to predictions
 #

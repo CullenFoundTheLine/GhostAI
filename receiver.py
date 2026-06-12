@@ -3,7 +3,7 @@
 # KEEP THIS FILE AS IS — it works
 # Run this FIRST before anything else when GT7 is open
 #
-# Usage: python receiver.py
+# Usage: python3 receiver.py
 
 import csv
 import os
@@ -43,11 +43,11 @@ def handle_data(t):
           f"Gear {t.current_gear} | Throttle {t.throttle} | Brake {t.brake}")
 
 print(f"[Ghost AI] Recording to: {filename}")
-print(f"[Ghost AI] Connecting to PS5 at 10.0.0.133...")
+print(f"[Ghost AI] Connecting to PS5 at, make sure GT7 is open and telemetry is enabled.\n")
 print(f"[Ghost AI] Press Ctrl+C to stop and save.\n")
 
 try:
-    client = TurismoClient(ps_ip="10.0.0.133")
+    client = TurismoClient(ps_ip="Enter PS5 IP here:")
     client.register_callback(handle_data)
     client.run()
 except KeyboardInterrupt:

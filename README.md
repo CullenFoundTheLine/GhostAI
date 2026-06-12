@@ -54,4 +54,4 @@ python run.py --driver "YourName"     # set driver name
 
 ## PS5 Network Setup
 
-Set `ps_ip` in `receiver.py` to your PS5's local IP. Enable **UDP packet sending** in GT7 under Settings → Network.
+Set `` in `receiver.py` to your PS5's local IP. Enable **UDP packet sending** in GT7 under Settings → Network.

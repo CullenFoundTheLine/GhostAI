@@ -5,11 +5,11 @@
 # It decides what to do based on the command you give it.
 #
 # Commands:
-#   python run.py                        # full pipeline: load all sessions → train → predict → report
-#   python run.py --new data/session.csv # predict one new session without retraining
-#   python run.py --retrain              # force retrain even if model exists
-#   python run.py --status               # show what data and models exist
-#   python run.py --driver "Cullen"      # set driver name
+#   python3 run.py                        # full pipeline: load all sessions → train → predict → report
+#   python3 run.py --new data/session.csv # predict one new session without retraining
+#   python3 run.py --retrain              # force retrain even if model exists
+#   python3 run.py --status               # show what data and models exist
+#   python3 run.py --driver "Cullen"      # set driver name
 #
 # How it connects to everything:
 #

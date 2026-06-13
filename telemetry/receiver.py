@@ -1,56 +1,88 @@
-# ghostai/receiver.py
+# telemetry/receiver.py
 # GT7 Live Telemetry Receiver
-# KEEP THIS FILE AS IS — it works
-# Run this FIRST before anything else when GT7 is open
-#
-# Usage: python3 receiver.py
+# Connects to PS5, captures session info first, records to CSV
 
 import csv
 import os
 from datetime import datetime
 from gt_telem import TurismoClient
+from telemetry.session import setup
+from telemetry.parser import Parser
 
+# Get PS5 IP from environment — never hardcoded
+PS_IP = os.getenv("TELEMETRY_IP")
+
+if not PS_IP:
+    print("No PS5 IP set.")
+    print("Run: export TELEMETRY_IP=10.0.0.133")
+    exit()
+
+# Step 1 — get session info before recording
+session = setup()
+if not session:
+    exit()
+
+# Step 2 — create CSV file tagged with session info
 os.makedirs("data", exist_ok=True)
-filename = f"data/session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+filename = f"data/{session.track}_{session.car}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
 csvfile = open(filename, 'w', newline='')
-writer = csv.writer(csvfile)
+writer  = csv.writer(csvfile)
 
-# This is your schema — every column Ghost AI reads
 writer.writerow([
-    'speed_kph', 'gear', 'throttle', 'brake', 'rpm',
+    'driver', 'track', 'car', 'weather', 'tires', 'session_type',
+    'speed', 'gear', 'throttle', 'brake', 'rpm',
     'lap', 'pos_x', 'pos_y', 'pos_z',
-    'tire_fl', 'tire_fr', 'tire_rl', 'tire_rr'
+    'tire_fl', 'tire_fr', 'tire_rl', 'tire_rr',
+    'timestamp'
 ])
 
-def handle_data(t):
-    writer.writerow([
-        round(t.speed_kph, 2),
-        t.current_gear,
-        t.throttle,
-        t.brake,
-        round(t.engine_rpm),
-        t.current_lap,
-        round(t.position_x, 2),
-        round(t.position_y, 2),
-        round(t.position_z, 2),
-        round(t.tire_fl_temp, 1),
-        round(t.tire_fr_temp, 1),
-        round(t.tire_rl_temp, 1),
-        round(t.tire_rr_temp, 1)
-    ])
-    print(f"Lap {t.current_lap} | {t.speed_kph:.1f} kph | "
-          f"Gear {t.current_gear} | Throttle {t.throttle} | Brake {t.brake}")
+# Step 3 — create parser with 100ms interval
+parser = Parser(interval_ms=100)
 
-print(f"[Ghost AI] Recording to: {filename}")
-print(f"[Ghost AI] Connecting to PS5 at, make sure GT7 is open and telemetry is enabled.\n")
-print(f"[Ghost AI] Press Ctrl+C to stop and save.\n")
+frame_count = 0
+
+def handle_data(t):
+    global frame_count
+    frame_count += 1
+
+    # Only parse every 100ms
+    data = parser.parse(t, session)
+    if data is None:
+        return
+
+    writer.writerow([
+        data["driver"], data["track"], data["car"],
+        session.weather, session.tires, session.session_type,
+        data["speed"], data["gear"], data["throttle"], data["brake"],
+        round(t.engine_rpm) if t.engine_rpm else 0,
+        data["lap"],
+        data["pos_x"], data["pos_y"], data["pos_z"],
+        round(t.tire_fl_temp, 1), round(t.tire_fr_temp, 1),
+        round(t.tire_rl_temp, 1), round(t.tire_rr_temp, 1),
+        data["timestamp"]
+    ])
+    csvfile.flush()
+
+    # One updating line in terminal
+    print(
+        f"\r  Lap {data['lap']} | "
+        f"{data['speed']:.1f} kph | "
+        f"G{data['gear']} | "
+        f"T:{int(data['throttle'])} "
+        f"B:{int(data['brake'])} | "
+        f"Frames: {frame_count}    ",
+        end="", flush=True
+    )
+
+print(f"\n[Ghost AI] Recording to: {filename}\n")
 
 try:
-    client = TurismoClient(ps_ip="Enter PS5 IP here:")
+    client = TurismoClient(ps_ip=PS_IP)
     client.register_callback(handle_data)
     client.run()
 except KeyboardInterrupt:
-    print(f"\n[Ghost AI] Session saved: {filename}")
+    print(f"\n\n[Ghost AI] Session saved: {filename}")
+    print(f"[Ghost AI] Total frames captured: {frame_count}")
 finally:
     csvfile.close()

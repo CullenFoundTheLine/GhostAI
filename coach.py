@@ -247,3 +247,71 @@ if __name__ == "__main__":
 
     rpt = analyze_file(path)
     print(json.dumps(rpt, indent=2))
+
+def generate_coaching_report(lap_summary: Dict[str, Any], lap_number: int = 1) -> str:
+    """
+    Takes a lap summary and produces a coaching report.
+    This is the final output the driver sees.
+    """
+    zones  = lap_summary.get("braking_zones", [])
+    style  = lap_summary.get("style", "unknown")
+    coast  = lap_summary.get("coast_percentage", 0)
+    drift  = lap_summary.get("drift_throttle_events", 0)
+    trail  = lap_summary.get("trail_brake_events", 0)
+
+    lines = []
+    lines.append(f"\n[Ghost AI] Lap {lap_number} Coaching Report")
+    lines.append("─" * 45)
+
+    # Time lost per zone
+    if zones:
+        lines.append("\n  Time Lost by Zone:")
+        total_lost = 0.0
+        for i, z in enumerate(zones[:5], 1):
+            lost = round(z["speed_drop_kph"] * (z["samples"] / 10.0) / 50, 2)
+            total_lost += lost
+            lines.append(
+                f"    Zone {i}: +{lost:.2f}s | "
+                f"Entry {z['start_speed']:.0f} kph → "
+                f"Exit {z['end_speed']:.0f} kph"
+            )
+        lines.append(f"\n  Total estimated loss: {round(total_lost, 2)}s")
+
+    # Primary issue
+    lines.append("\n  Primary Issue:")
+    if coast > 30:
+        lines.append(f"    Coasting {coast:.0f}% of lap — throttle too late on exit.")
+    elif drift > 10:
+        lines.append(f"    {drift} drift events — rear losing traction under power.")
+    elif trail > 8:
+        lines.append(f"    Trail braking {trail} times — overlap timing needs work.")
+    elif zones:
+        avg_entry = sum(z["start_speed"] for z in zones) / len(zones)
+        lines.append(f"    Avg brake entry {avg_entry:.0f} kph — check brake point.")
+    else:
+        lines.append("    No major issues detected.")
+
+    # Recommendation
+    lines.append("\n  Recommendation:")
+    if style == "aggressive-drift":
+        lines.append("    Rear bias differential recommended.")
+        lines.append("    Brake 5-8m later at heavy zones.")
+        lines.append("    Apply full throttle 0.2s earlier on exit.")
+    elif style == "late-braker":
+        lines.append("    Trail brake deeper to maintain entry speed.")
+    elif style == "smooth-entry":
+        lines.append("    Commit harder — you have margin to brake later.")
+        lines.append("    Reduce coast by applying throttle sooner.")
+    elif style == "drift-balanced":
+        lines.append("    Refine throttle timing on exit.")
+        lines.append("    Stiffen rear to reduce mid-corner oversteer.")
+    else:
+        lines.append("    Drive more laps to build a clearer profile.")
+
+    # Estimated gain
+    if zones:
+        gain = round(total_lost * 0.3, 2)
+        lines.append(f"\n  Estimated lap gain: {gain}s")
+
+    lines.append("\n" + "─" * 45)
+    return "\n".join(lines)

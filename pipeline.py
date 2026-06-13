@@ -22,6 +22,8 @@ from typing import List, Dict, Any, Optional
 from coach import analyze_file, extract_features, STYLE_MAP
 from ghost_ai import GhostAI, STYLE_LABELS
 from session_repository import SessionRepository
+from coach import load_session, segment_laps, generate_coaching_report
+from analyzer.lap import compare_laps, print_comparison
  
  
 class GhostPipeline:
@@ -251,6 +253,46 @@ class GhostPipeline:
         print(f"[Pipeline] Learning set: {len(learning_set)} events ready for model")
         return learning_set
  
+
+    # ------------------------------------------------------------------
+    # LAP COMPARISON + COACHING REPORT
+    # ------------------------------------------------------------------
+
+    def run_coaching_report(self, csv_path: str):
+        """
+        Full coaching output for one session:
+        1. Coaching report per lap
+        2. Lap comparison vs best lap
+        """
+        print(f"\n[Ghost AI] Coaching Report — {os.path.basename(csv_path)}")
+        print("=" * 50)
+
+        report = analyze_file(csv_path)
+        for lap_no, summary in report["laps"].items():
+            print(generate_coaching_report(summary, lap_number=lap_no))
+
+        df   = load_session(csv_path)
+        laps = segment_laps(df)
+
+        if len(laps) < 2:
+            print("  Need at least 2 laps for comparison.")
+            return
+
+        best_lap_no = max(laps.keys(),
+                          key=lambda l: laps[l]["speed_kph"].mean())
+        print(f"\n[Ghost AI] Best lap: Lap {best_lap_no}")
+        print("[Ghost AI] Comparing all laps to best lap...\n")
+
+        best_lap = laps[best_lap_no]
+        for lap_no, lap_df in laps.items():
+            if lap_no == best_lap_no:
+                continue
+            if len(lap_df) < 50:
+                continue
+            losses = compare_laps(best_lap, lap_df)
+            print_comparison(losses, lap_no)
+
+    # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     # HELPERS
     # ------------------------------------------------------------------

@@ -33,3 +33,4 @@ data/debug/
 
 # dotenv
 .env
+data/

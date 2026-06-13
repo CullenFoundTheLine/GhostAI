@@ -1,1 +1,0 @@
-detect_drift_events()

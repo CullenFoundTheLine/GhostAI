@@ -1,15 +1,49 @@
 # telemetry/receiver.py
 # GT7 Live Telemetry Receiver
-# Connects to PS5, captures session info first, records to CSV
+# Parser merged in — no separate parser.py needed
 
 import csv
 import os
 from datetime import datetime
 from gt_telem import TurismoClient
 from telemetry.session import setup
-from telemetry.parser import Parser
 
-# Get PS5 IP from environment — never hardcoded
+# ── Parser ─────────────────────────────────────────────
+
+class Parser:
+    def __init__(self, interval_ms=100):
+        self.interval_ms = interval_ms
+        self.last_saved  = None
+
+    def should_parse(self):
+        if self.last_saved is None:
+            return True
+        elapsed = (datetime.now() - self.last_saved).total_seconds() * 1000
+        return elapsed >= self.interval_ms
+
+    def parse(self, t, session):
+        if not self.should_parse():
+            return None
+        self.last_saved = datetime.now()
+        return {
+            "driver":    session.driver,
+            "track":     session.track,
+            "car":       session.car,
+            "weather":   session.weather,
+            "speed":     getattr(t, "speed_kph", 0) or 0,
+            "brake":     getattr(t, "brake", 0) or 0,
+            "throttle":  getattr(t, "throttle", 0) or 0,
+            "gear":      getattr(t, "current_gear", 0) or 0,
+            "lap":       getattr(t, "current_lap", 0) or 0,
+            "pos_x":     getattr(t, "position_x", 0) or 0,
+            "pos_y":     getattr(t, "position_y", 0) or 0,
+            "pos_z":     getattr(t, "position_z", 0) or 0,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+
+# ── Receiver ───────────────────────────────────────────
+
 PS_IP = os.getenv("TELEMETRY_IP")
 
 if not PS_IP:
@@ -17,18 +51,15 @@ if not PS_IP:
     print("Run: export TELEMETRY_IP=10.0.0.133")
     exit()
 
-# Step 1 — get session info before recording
 session = setup()
 if not session:
     exit()
 
-# Step 2 — create CSV file tagged with session info
 os.makedirs("data", exist_ok=True)
 filename = f"data/{session.track}_{session.car}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
 csvfile = open(filename, 'w', newline='')
 writer  = csv.writer(csvfile)
-
 writer.writerow([
     'driver', 'track', 'car', 'weather', 'tires', 'session_type',
     'speed', 'gear', 'throttle', 'brake', 'rpm',
@@ -37,20 +68,15 @@ writer.writerow([
     'timestamp'
 ])
 
-# Step 3 — create parser with 100ms interval
-parser = Parser(interval_ms=100)
-
+parser      = Parser(interval_ms=100)
 frame_count = 0
 
 def handle_data(t):
     global frame_count
     frame_count += 1
-
-    # Only parse every 100ms
     data = parser.parse(t, session)
     if data is None:
         return
-
     writer.writerow([
         data["driver"], data["track"], data["car"],
         session.weather, session.tires, session.session_type,
@@ -63,8 +89,6 @@ def handle_data(t):
         data["timestamp"]
     ])
     csvfile.flush()
-
-    # One updating line in terminal
     print(
         f"\r  Lap {data['lap']} | "
         f"{data['speed']:.1f} kph | "
@@ -83,6 +107,6 @@ try:
     client.run()
 except KeyboardInterrupt:
     print(f"\n\n[Ghost AI] Session saved: {filename}")
-    print(f"[Ghost AI] Total frames captured: {frame_count}")
+    print(f"[Ghost AI] Frames captured: {frame_count}")
 finally:
     csvfile.close()

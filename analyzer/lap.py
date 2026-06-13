@@ -141,3 +141,69 @@ def print_lap_summary(summary):
               f"Lost: {z['seconds_lost']:.2f}s | "
               f"Entry: {z['speed_entry']:.1f} kph | "
               f"Brake: {z['brake_pressure']:.0f}")
+        
+def compare_laps(best_lap_df, compare_lap_df):
+    """
+    Compares two laps frame by frame using position.
+    Finds exactly where the comparison lap lost time vs the best lap.
+
+    best_lap_df    — pandas DataFrame of your fastest lap
+    compare_lap_df — pandas DataFrame of the lap being analyzed
+
+    Returns a list of time loss zones with position and speed delta.
+    """
+    import numpy as np
+
+    best    = best_lap_df.reset_index(drop=True)
+    compare = compare_lap_df.reset_index(drop=True)
+
+    losses = []
+
+    for i, row in compare.iterrows():
+        cx = row.get("pos_x", 0)
+        cz = row.get("pos_z", 0)
+        c_speed = row.get("speed_kph", 0)
+
+        # Find the closest frame in the best lap by position
+        distances = np.sqrt(
+            (best["pos_x"] - cx) ** 2 +
+            (best["pos_z"] - cz) ** 2
+        )
+        closest_idx = distances.idxmin()
+        b_speed = best.loc[closest_idx, "speed_kph"]
+
+        speed_delta = round(b_speed - c_speed, 2)
+
+        # Only record where comparison lap was slower
+        if speed_delta > 5:
+            losses.append({
+                "frame":       i,
+                "pos_x":       round(cx, 2),
+                "pos_z":       round(cz, 2),
+                "best_speed":  round(b_speed, 2),
+                "your_speed":  round(c_speed, 2),
+                "speed_delta": speed_delta,
+            })
+
+    return losses
+
+
+def print_comparison(losses, lap_number):
+    """Print the lap comparison report."""
+    if not losses:
+        print(f"  Lap {lap_number} — no significant time loss vs best lap.")
+        return
+
+    print(f"\n[Ghost AI] Lap {lap_number} vs Best Lap")
+    print("─" * 45)
+    print(f"  Frames where you were slower: {len(losses)}")
+
+    # Find the worst 5 moments
+    worst = sorted(losses, key=lambda x: x["speed_delta"], reverse=True)[:5]
+    print("\n  Biggest losses:")
+    for w in worst:
+        print(f"    Frame {w['frame']:4} | "
+              f"You: {w['your_speed']:.1f} kph | "
+              f"Best: {w['best_speed']:.1f} kph | "
+              f"Delta: -{w['speed_delta']:.1f} kph")
+    print()
